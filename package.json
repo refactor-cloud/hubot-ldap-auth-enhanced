@@ -1,0 +1,29 @@
+{
+  "name": "hubot-ldap-auth-enhanced",
+  "version": "0.0.1",
+  "description": "An auth module for Hubot that delegates to an LDAP server",
+  "main": "index.coffee",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Adrian Marquis",
+  "license": "MIT",
+  "dependencies": {
+    "ldapjs": "^1.0.1",
+    "lodash": "^4.17.10",
+    "deferred": "^0.7.10"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/xy795/hubot-ldap-auth-enhanced.git"
+  },
+  "keywords": [
+    "hubot",
+    "ldap",
+    "authorization"
+  ],
+  "bugs": {
+    "url": "https://github.com/xy795/hubot-ldap-auth-enhanced/issues"
+  },
+  "homepage": "https://github.com/xy795/hubot-ldap-auth-enhanced#readme"
+}
