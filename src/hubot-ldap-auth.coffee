@@ -188,13 +188,13 @@ module.exports = (inputRobot) ->
         if not entry.user.dn
           throw new Error("User #{entry.user.name} does not have a dn, skipping")
         entry.user
-        .then (user) ->
+      .then (user) ->
         getGroupsDNsForUser(user).then (groupDns) ->
           {user: user, groupDns: groupDns}
-        .then (entry) ->
+      .then (entry) ->
         getGroupNamesByDn(entry.groupDns).then (groupNames) ->
           {user: entry.user, groupNames: groupNames}
-        .then (entry) ->
+      .then (entry) ->
         groupNames = entry.groupNames
         robot.logger.debug "groupNames for #{entry.user.name} are #{groupNames}"
         filterRoles = if useOnlyListenerRoles then new RegExp "^#{listenerRoles.join('|')}$" else rolesToInclude
@@ -208,7 +208,7 @@ module.exports = (inputRobot) ->
         brainUser.dn = entry.user.dn
         robot.brain.save()
 
-        .catch (err) ->
+      .catch (err) ->
         robot.logger.error "Error while getting user groups", err
 
     robot.logger.info "Users and roles were loaded from LDAP"
