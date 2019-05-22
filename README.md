@@ -1,0 +1,1 @@
+# hubot-ldap-auth-enhanced
