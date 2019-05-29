@@ -16,9 +16,9 @@
 #   HUBOT_LDAP_AUTH_LDAP_USER_ATTRIBUTE - ldap_user_attribute - the ldap attribute to match hubot users within the ldap directory
 #   HUBOT_LDAP_AUTH_HUBOT_USER_ATTRIBUTE - hubot_user_attribute - the hubot user attribute to search for a user within the ldap directory
 #   HUBOT_LDAP_AUTH_LDAP_GROUP_ATTRIBUTE - ldap_group_attribute - the ldap attribute of a group that will be used as role name
-#   HUBOT_LDAP_AUTH_LDAP_REFRESH_TIME - ldap_refresh_time - time in millisecods to refresh the roles and users
+#   HUBOT_LDAP_AUTH_REFRESH_TIME - refresh_time - time in millisecods to refresh the roles and users
 #   HUBOT_LDAP_AUTH_DN_ATTRIBUTE_NAME - dn_attirbute_name - the dn attribute name, used for queries by DN. In ActiveDirectory should be distinguishedName
-#   HUBOT_LDAP_AUTH_USER_ATTRIBUTE_REWRITE_RULE - user_attribute_rewrite_rule - regex for rewriting the hubot username to the one used in ldap - e.g. '@(.+):matrix.org' where the first capturing group will be used as username. No subsitution if omitted
+#   HUBOT_LDAP_AUTH_USERNAME_REWRITE_RULE - username_rewrite_rule - regex for rewriting the hubot username to the one used in ldap - e.g. '@(.+):matrix.org' where the first capturing group will be used as username. No subsitution if omitted
 #
 # Commands:
 #   hubot what roles does <user> have - Find out what roles a user has
@@ -70,7 +70,7 @@ module.exports = (inputRobot) ->
   ldapUserNameAttribute = loadConfigValue "ldap_user_attribute", "cn"
   hubotUserNameAttribute = loadConfigValue "hubot_user_attribute", "name"
   groupNameAttribute = loadConfigValue "ldap_group_attribute", "cn"
-  ldapRefreshTime = loadConfigValue "ldap_refresh_time", 21600000
+  refreshTime = loadConfigValue "refresh_time", 21600000
 
   robot.logger.info "Starting ldap search with ldapURL: #{ldapHost}, bindDn: #{bindDn}, userSearchFilter: #{userSearchFilter},
   groupMembershipFilter: #{groupMembershipFilter}, groupMembershipAttribute: #{groupMembershipAttribute}, groupMembershipSearchMethod: #{groupMembershipSearchMethod},
@@ -171,7 +171,7 @@ module.exports = (inputRobot) ->
     if !isOneTimeRequest
       setTimeout ->
         loadListeners()
-      , ldapRefreshTime
+      , refreshTime
     robot.logger.info "Loading users and roles from LDAP"
     listenerRoles = loadListenerRoles()
       .map (e) -> e.toLowerCase()
