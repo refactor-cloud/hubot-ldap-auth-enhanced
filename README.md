@@ -3,13 +3,23 @@
 [![npm version](https://badge.fury.io/js/hubot-ldap-auth-enhanced.svg)](https://badge.fury.io/js/hubot-ldap-auth-enhanced)
 
 Enhanced version for Hubot command authentication for ldap.
+
 Original idea by [jmcshane](https://github.com/jmcshane).
 
-This module is derived from the [hubot-auth](https://github.com/hubot-scripts/hubot-auth) module and it delegates the main functions of authorization to an LDAP server using the [ldapjs](http://ldapjs.org/client.html) LDAP client.  In the implementation, it is meant to be a drop in replacement for the existing module so that the other integrations that exist around hubot-auth can continue to function properly.  All modifying actions have been removed from the auth client so that the LDAP server can act as a service providing authorization details to Hubot, rather than providing Hubot ability to do such modifications. Theoretically, this would be a separate script to do such an integration, but it is not in the scope of this module.
+This module is derived from the [hubot-auth](https://github.com/hubot-scripts/hubot-auth) module and it delegates the 
+main functions of authorization to an LDAP server using the [ldapjs](http://ldapjs.org/client.html) LDAP client.  In 
+the implementation, it is meant to be a drop in replacement for the existing module so that the other integrations that 
+exist around hubot-auth can continue to function properly.  All modifying actions have been removed from the auth client 
+so that the LDAP server can act as a service providing authorization details to Hubot, rather than providing Hubot 
+ability to do such modifications. Theoretically, this would be a separate script to do such an integration, but it is 
+not in the scope of this module.
 
-Starting with the startup of the bot, known DNs for known users are searched in ldap and - if found - roles are extracted. The roles are refreshed periodically, specified by ```refresh_time```. To force the refresh of the user DNs, one would have to issue a manual request to hubot (```hubot refresh roles!```). Mind the '!' at the end of the command.
+Starting with the startup of the bot, known DNs for known users are searched in ldap and - if found - roles are 
+extracted. The roles are refreshed periodically, specified by ```refresh_time```. To force the refresh of the user DNs, 
+one would have to issue a manual request to hubot (```hubot refresh roles!```). Mind the '!' at the end of the command.
 
-If user unique ids in ldap differ from these known by hubot, a substitution can be specified with a regex. The first capturing group is representative of the username in ldap.
+If unique user ids in ldap differ from these known by hubot, a substitution can be specified with a regex. The first 
+capturing group is representative of the username in ldap.
 ```
 # @exampleUser:matrix.com -> exampleUser
 
@@ -18,6 +28,7 @@ If user unique ids in ldap differ from these known by hubot, a substitution can 
 
 # Configuration
 The environment variables are prefixed with 'HUBOT_LDAP_AUTH_'. (e.g. HUBOT_LDAP_AUTH_HOST)
+
 The json config values are located below the key 'ldap_auth' and are all lowercase.
 
 Variable | Default | Description
