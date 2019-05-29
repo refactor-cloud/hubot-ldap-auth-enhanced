@@ -1,33 +1,31 @@
 # Description
 #   Delegate authorization for Hubot user actions to LDAP
 #
-# Configuration:
-#   HUBOT_LDAP_AUTH_HOST - the URL to the LDAP server
-#   HUBOT_LDAP_AUTH_BIND_DN - the bind DN to authenticate with
-#   HUBOT_LDAP_AUTH_BIND_PASSWORD - the bind password to authenticate with
-#   HUBOT_LDAP_AUTH_USER_SEARCH_FILTER - the ldap filter search for a specific user - e.g. 'cn={0}' where '{0}' will be replaced by the hubot user attribute
-#   HUBOT_LDAP_AUTH_GROUP_MEMBERSHIP_ATTRIBUTE - the member attribute within the user object
-#   HUBOT_LDAP_AUTH_GROUP_MEMBERSHIP_FILTER - the membership filter to find groups based on user DN - e.g. 'member={0}' where '{0}' will be replaced by user DN
-#   HUBOT_LDAP_AUTH_GROUP_MEMBERSHIP_SEARCH_METHOD - (filter | attribute) - how to find groups belong to users
-#   HUBOT_LDAP_AUTH_ROLES_TO_INCLUDE - comma separated group names that will be used as roles, all the rest of the groups will be filtered out
-#   HUBOT_LDAP_AUTH_USE_ONLY_LISTENER_ROLES - if true, groups will only be filtered by all listener options and ROLES_TO_INCLUDE will be ignored
-#   HUBOT_LDAP_AUTH_SEARCH_BASE_DN - search DN to start finding users and groups within the ldap directory
-#   HUBOT_LDAP_AUTH_LDAP_USER_ATTRIBUTE - the ldap attribute to match hubot users within the ldap directory
-#   HUBOT_LDAP_AUTH_HUBOT_USER_ATTRIBUTE - the hubot user attribute to search for a user within the ldap directory
-#   HUBOT_LDAP_AUTH_GROUP_LDAP_ATTRIBUTE - the ldap attribute of a group that will be used as role name
-#   HUBOT_LDAP_AUTH_LDAP_REFRESH_TIME - time in millisecods to refresh the roles and users
-#   HUBOT_LDAP_AUTH_DN_ATTRIBUTE_NAME - the dn attribute name, used for queries by DN. In ActiveDirectory should be distinguishedName
-#   HUBOT_LDAP_AUTH_USER_ATTRIBUTE_REWRITE_RULE - regex for rewriting the hubot username to the one used in ldap - e.g. '@(.+):matrix.org' where the first capturing group will be used as username. No subsitution if omitted
+# Configuration: (ENV - json - description)
+# The json config is located under the 'ldap_auth' key
+#   HUBOT_LDAP_AUTH_HOST - host - the address of the LDAP server
+#   HUBOT_LDAP_AUTH_BIND_DN - bind_dn - the bind DN to authenticate with
+#   HUBOT_LDAP_AUTH_BIND_PASSWORD - bind_password - the bind password to authenticate with
+#   HUBOT_LDAP_AUTH_USER_SEARCH_FILTER - user_search_filter - the ldap filter search for a specific user - e.g. 'cn={0}' where '{0}' will be replaced by the hubot user attribute
+#   HUBOT_LDAP_AUTH_GROUP_MEMBERSHIP_ATTRIBUTE - group_membership_attribute - the member attribute within the user object
+#   HUBOT_LDAP_AUTH_GROUP_MEMBERSHIP_FILTER - group_membership_filter - the membership filter to find groups based on user DN - e.g. 'member={0}' where '{0}' will be replaced by user DN
+#   HUBOT_LDAP_AUTH_GROUP_MEMBERSHIP_SEARCH_METHOD - group_membership_search_method - (filter | attribute) how to find groups belong to users
+#   HUBOT_LDAP_AUTH_ROLES_TO_INCLUDE - roles_to_include - comma separated group names that will be used as roles, all the rest of the groups will be filtered out. Json datatype needs to be array.
+#   HUBOT_LDAP_AUTH_USE_ONLY_LISTENER_ROLES - use_only_listener_roles - if true, groups will only be filtered by all listener options and ROLES_TO_INCLUDE will be ignored
+#   HUBOT_LDAP_AUTH_BASE_DN - base_dn - search DN to start finding users and groups within the ldap directory
+#   HUBOT_LDAP_AUTH_LDAP_USER_ATTRIBUTE - ldap_user_attribute - the ldap attribute to match hubot users within the ldap directory
+#   HUBOT_LDAP_AUTH_HUBOT_USER_ATTRIBUTE - hubot_user_attribute - the hubot user attribute to search for a user within the ldap directory
+#   HUBOT_LDAP_AUTH_LDAP_GROUP_ATTRIBUTE - ldap_group_attribute - the ldap attribute of a group that will be used as role name
+#   HUBOT_LDAP_AUTH_LDAP_REFRESH_TIME - ldap_refresh_time - time in millisecods to refresh the roles and users
+#   HUBOT_LDAP_AUTH_DN_ATTRIBUTE_NAME - dn_attirbute_name - the dn attribute name, used for queries by DN. In ActiveDirectory should be distinguishedName
+#   HUBOT_LDAP_AUTH_USER_ATTRIBUTE_REWRITE_RULE - user_attribute_rewrite_rule - regex for rewriting the hubot username to the one used in ldap - e.g. '@(.+):matrix.org' where the first capturing group will be used as username. No subsitution if omitted
 #
 # Commands:
 #   hubot what roles does <user> have - Find out what roles a user has
 #   hubot what roles do I have - Find out what roles you have
-#   hubot refreh roles
+#   hubot refresh roles
+#   hubot refresh roles! - Refresh also already known user DNs
 #   hubot who has <roleName> role
-#
-# Notes:
-#   * returns bool true or false
-#
 
 _ = require 'lodash'
 LDAP = require 'ldapjs'
@@ -51,7 +49,7 @@ module.exports = (inputRobot) ->
 
     defaultValue
 
-  ldapHost = loadConfigValue "host"
+  ldapHost = loadConfigValue "host", 'ldap://127.0.0.1:389'
   bindDn = loadConfigValue "bind_dn"
   bindPassword = loadConfigValue "bind_password"
 
@@ -69,9 +67,9 @@ module.exports = (inputRobot) ->
 
   baseDn = loadConfigValue "base_dn", "dc=example,dc=com"
 
-  ldapUserNameAttribute = loadConfigValue "user_ldap_attribute", "cn"
-  hubotUserNameAttribute = loadConfigValue "user_hubot_attribute", "name"
-  groupNameAttribute = loadConfigValue "group_ldap_attribute", "cn"
+  ldapUserNameAttribute = loadConfigValue "ldap_user_attribute", "cn"
+  hubotUserNameAttribute = loadConfigValue "hubot_user_attribute", "name"
+  groupNameAttribute = loadConfigValue "ldap_group_attribute", "cn"
   ldapRefreshTime = loadConfigValue "ldap_refresh_time", 21600000
 
   robot.logger.info "Starting ldap search with ldapURL: #{ldapHost}, bindDn: #{bindDn}, userSearchFilter: #{userSearchFilter},
@@ -86,11 +84,16 @@ module.exports = (inputRobot) ->
     rolesToInclude = new RegExp "^#{rolesToInclude.join('|')}$"
 
 
-  client = LDAP.createClient {
-    url: ldapHost,
-    bindDN: bindDn,
-    bindCredentials: bindPassword
-  }
+  client = undefined
+
+  _ensureHost = ->
+    unless client and client.connected
+      robot.logger.debug("reconnect to ldap endpoint.")
+      client = LDAP.createClient {
+        url: ldapHost,
+        bindDN: bindDn,
+        bindCredentials: bindPassword
+      }
 
   getDnForUser = (userId, user) ->
     if userNameRewriteRule
@@ -151,6 +154,7 @@ module.exports = (inputRobot) ->
 
   executeSearch = (opts) ->
     def = deferred()
+    _ensureHost()
     client.search baseDn, opts, (err, res) ->
       arr = []
       if err
@@ -163,7 +167,7 @@ module.exports = (inputRobot) ->
         def.resolve arr
     def.promise
 
-  loadListeners = (isOneTimeRequest) ->
+  loadListeners = (isOneTimeRequest, refreshUserDn=false) ->
     if !isOneTimeRequest
       setTimeout ->
         loadListeners()
@@ -178,7 +182,8 @@ module.exports = (inputRobot) ->
       user = users[userId]
       userAttr = user[hubotUserNameAttribute]
       if userAttr
-        promises.push((if user.dn then (def.resolve { user: user }; def.promise) else getDnForUser(userAttr, user)))
+        promises.push(if user.dn and !refreshUserDn \
+        then (def.resolve { user: user }; def.promise) else getDnForUser(userAttr, user))
 
     promises.forEach (promise) ->
       promise.then (entry) ->
@@ -251,8 +256,8 @@ module.exports = (inputRobot) ->
   robot.brain.on 'loaded', ->
     loadListeners()
 
-  robot.respond /refresh roles/i, (msg) ->
-    loadListeners(true)
+  robot.respond /refresh roles(!)?/i, (msg) ->
+    loadListeners(true, msg.match[1] == '!')
 
   robot.respond /what roles? do(es)? @?(.+) have\?*$/i, (msg) ->
     name = msg.match[2].trim()

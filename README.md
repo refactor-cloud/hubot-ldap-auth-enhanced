@@ -1,1 +1,76 @@
 # hubot-ldap-auth-enhanced
+
+[![npm version](https://badge.fury.io/js/hubot-ldap-auth-enhanced.svg)](https://badge.fury.io/js/hubot-ldap-auth-enhanced)
+
+Enhanced version for Hubot command authentication for ldap.
+Original idea by [jmcshane](https://github.com/jmcshane).
+
+It uses [ldapjs](https://www.npmjs.com/package/ldapjs) to connect to the ldap endpoint.
+
+This module is derived from the [hubot-auth](https://github.com/hubot-scripts/hubot-auth) module 
+
+# Configuration
+This module is derived from the [hubot-auth](https://github.com/hubot-scripts/hubot-auth) module and it delegates the main functions of authorization to an LDAP server using the [ldapjs](http://ldapjs.org/client.html) LDAP client.  In the implementation, it is meant to be a drop in replacement for the existing module so that the other integrations that exist around hubot-auth can continue to function properly.  All modifying actions have been removed from the auth client so that the LDAP server can act as a service providing authorization details to Hubot, rather than providing Hubot ability to do such modifications. Theoretically, this would be a separate script to do such an integration, but it is not in the scope of this module.
+
+Starting with the startup of the bot, known DNs for known users are searched in ldap and - if found - roles are extracted. The roles are refreshed periodically, specified by ```ldap_refresh_time```. To force the refresh of the user DNs, one would have to issue a manual request to hubot (```hubot refresh roles!```). Mind the '!' at the end of the command.
+
+If user unique ids in ldap differ from these known by hubot, a substitution can be specified with a regex. The first capturing group is representative of the username in ldap.
+```
+# @exampleUser:matrix.com -> exampleUser
+
+@(.*):matrix.org
+```
+
+ENV | json key | Default | Description
+--- | --- | --- | ---
+HUBOT_LDAP_AUTH_HOST | ldap_auth.host | ldap://127.0.0.1:389  | the address of the LDAP server
+HUBOT_LDAP_AUTH_BIND_DN | ldap_auth.bind_dn |  | the bind DN to authenticate with
+HUBOT_LDAP_AUTH_BIND_PASSWORD | ldap_auth.bind_password |   | the bind password to authenticate with
+HUBOT_LDAP_AUTH_USER_SEARCH_FILTER | ldap_auth.user_search_filter | cn={0} | the ldap filter search for a specific user - e.g. 'cn={0}' where '{0}' will be replaced by the hubot user attribute
+HUBOT_LDAP_AUTH_GROUP_MEMBERSHIP_ATTRIBUTE | ldap_auth.group_membership_attribute | memberOf | the member attribute within the user object
+HUBOT_LDAP_AUTH_GROUP_MEMBERSHIP_FILTER | ldap_auth.group_membership_filter | member={0} | the membership filter to find groups based on user DN - e.g. 'member={0}' where '{0}' will be replaced by user DN
+HUBOT_LDAP_AUTH_GROUP_MEMBERSHIP_SEARCH_METHOD | ldap_auth.group_membership_search_method | attribute | (filter / attribute) how to find groups belong to users
+HUBOT_LDAP_AUTH_ROLES_TO_INCLUDE | ldap_auth.roles_to_include |   | comma separated group names that will be used as roles, all the rest of the groups will be filtered out. Json datatype needs to be array.
+HUBOT_LDAP_AUTH_USE_ONLY_LISTENER_ROLES | ldap_auth.use_only_listener_roles | false | if true, groups will only be filtered by all listener options and ROLES_TO_INCLUDE will be ignored
+HUBOT_LDAP_AUTH_BASE_DN | base_dn | ldap_auth.dc=example,dc=com | search DN to start finding users and groups within the ldap directory
+HUBOT_LDAP_AUTH_LDAP_USER_ATTRIBUTE | ldap_auth.ldap_user_attribute | cn | the ldap attribute to match hubot users within the ldap directory
+HUBOT_LDAP_AUTH_HUBOT_USER_ATTRIBUTE | ldap_auth.hubot_user_attribute | name | the hubot user attribute to search for a user within the ldap directory
+HUBOT_LDAP_AUTH_LDAP_GROUP_ATTRIBUTE | ldap_auth.ldap_group_attribute | cn | the ldap attribute of a group that will be used as role name
+HUBOT_LDAP_AUTH_LDAP_REFRESH_TIME | ldap_auth.ldap_refresh_time | 21600000 | time in millisecods to refresh the roles and users
+HUBOT_LDAP_AUTH_DN_ATTRIBUTE_NAME | ldap_auth.dn_attirbute_name | dn | the dn attribute name, used for queries by DN. In ActiveDirectory should be distinguishedName
+HUBOT_LDAP_AUTH_USER_ATTRIBUTE_REWRITE_RULE | ldap_auth.user_attribute_rewrite_rule |   | regex for rewriting the hubot username to the one used in ldap - e.g. '@(.+):matrix.org' where the first capturing group will be used as username. No subsitution if omitted
+
+
+# Commands
+
+* hubot what roles does \<user\> have - Find out what roles a user has
+* hubot what roles do I have - Find out what roles you have
+* hubot refresh roles
+* hubot refresh roles! - Refresh also already known user DNs
+* hubot who has \<roleName\> role
+
+# Installation
+
+In order to set up this plugin, first install it in the project:
+
+```
+npm install hubot-ldap-auth-enhanced --save
+```
+
+Then, add the script to the `external-scripts.json` file:
+
+```json
+[
+    "hubot-ldap-auth-enhanced"
+]
+```
+
+Optionally, add configuration variables to the file ```config/default.json```:
+```json
+{
+  "ldap_auth": {
+    "bind_dn": "cn=userReader,dc=example,dc=com",
+    "bind_password": "superSecredPassword"
+  }
+}
+```
