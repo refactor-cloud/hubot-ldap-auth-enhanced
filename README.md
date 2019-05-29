@@ -18,26 +18,26 @@ If user unique ids in ldap differ from these known by hubot, a substitution can 
 
 # Configuration
 The environment variables are prefixed with 'HUBOT_LDAP_AUTH_'. (e.g. HUBOT_LDAP_AUTH_HOST)
-The json config values are located below the key 'ldap_auth'.
+The json config values are located below the key 'ldap_auth' and are all lowercase.
 
-ENV | json key | Default | Description
---- | --- | --- | ---
-HOST | host | ldap://127.0.0.1:389  | the address of the LDAP server
-BIND_DN | bind_dn |  | the bind DN to authenticate with
-BIND_PASSWORD | bind_password |   | the bind password to authenticate with
-USER_SEARCH_FILTER | user_search_filter | cn={0} | the ldap filter search for a specific user - e.g. 'cn={0}' where '{0}' will be replaced by the hubot user attribute
-GROUP_MEMBERSHIP_ATTRIBUTE | group_membership_attribute | memberOf | the member attribute within the user object
-GROUP_MEMBERSHIP_FILTER | group_membership_filter | member={0} | the membership filter to find groups based on user DN - e.g. 'member={0}' where '{0}' will be replaced by user DN
-GROUP_MEMBERSHIP_SEARCH_METHOD | group_membership_search_method | attribute | (filter / attribute) how to find groups belong to users
-ROLES_TO_INCLUDE | roles_to_include |   | comma separated group names that will be used as roles, all the rest of the groups will be filtered out. Json datatype needs to be array.
-USE_ONLY_LISTENER_ROLES | use_only_listener_roles | false | if true, groups will only be filtered by all listener options and ROLES_TO_INCLUDE will be ignored
-BASE_DN | base_dn | dc=example,dc=com | search DN to start finding users and groups within the ldap directory
-LDAP_USER_ATTRIBUTE | ldap_user_attribute | cn | the ldap attribute to match hubot users within the ldap directory
-HUBOT_USER_ATTRIBUTE | hubot_user_attribute | name | the hubot user attribute to search for a user within the ldap directory
-LDAP_GROUP_ATTRIBUTE | ldap_group_attribute | cn | the ldap attribute of a group that will be used as role name
-REFRESH_TIME | refresh_time | 21600000 | time in millisecods to refresh the roles and users
-DN_ATTRIBUTE_NAME | dn_attribute_name | dn | the dn attribute name, used for queries by DN. In ActiveDirectory should be distinguishedName
-USERNAME_REWRITE_RULE | username_rewrite_rule |   | regex for rewriting the hubot username to the one used in ldap - e.g. '@(.+):matrix.org' where the first capturing group will be used as username. No subsitution if omitted
+Variable | Default | Description
+--- | --- | ---
+HOST | ldap://127.0.0.1:389  | the address of the LDAP server
+BIND_DN |  | the bind DN to authenticate with
+BIND_PASSWORD |   | the bind password to authenticate with
+USER_SEARCH_FILTER | cn={0} | the ldap filter search for a specific user - e.g. 'cn={0}' where '{0}' will be replaced by the hubot user attribute
+GROUP_MEMBERSHIP_ATTRIBUTE | memberOf | the member attribute within the user object
+GROUP_MEMBERSHIP_FILTER | member={0} | the membership filter to find groups based on user DN - e.g. 'member={0}' where '{0}' will be replaced by user DN
+GROUP_MEMBERSHIP_SEARCH_METHOD | attribute | (filter / attribute) how to find groups belong to users
+ROLES_TO_INCLUDE |   | comma separated group names that will be used as roles, all the rest of the groups will be filtered out. Json datatype needs to be array.
+USE_ONLY_LISTENER_ROLES | false | if true, groups will only be filtered by all listener options and ROLES_TO_INCLUDE will be ignored
+BASE_DN | dc=example,dc=com | search DN to start finding users and groups within the ldap directory
+LDAP_USER_ATTRIBUTE | cn | the ldap attribute to match hubot users within the ldap directory
+HUBOT_USER_ATTRIBUTE | name | the hubot user attribute to search for a user within the ldap directory
+LDAP_GROUP_ATTRIBUTE | cn | the ldap attribute of a group that will be used as role name
+REFRESH_TIME | 21600000 | time in millisecods to refresh the roles and users
+DN_ATTRIBUTE_NAME | dn | the dn attribute name, used for queries by DN. In ActiveDirectory should be distinguishedName
+USERNAME_REWRITE_RULE |   | regex for rewriting the hubot username to the one used in ldap - e.g. '@(.+):matrix.org' where the first capturing group will be used as username. No subsitution if omitted
 
 
 # Commands
