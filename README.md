@@ -59,6 +59,13 @@ USERNAME_REWRITE_RULE |   | regex for rewriting the hubot username to the one us
 * hubot refresh roles! - Refresh also already known user DNs
 * hubot who has \<roleName\> role
 
+## Integration with Hubot
+
+This script is meant to be used with the [hubot-auth-middleware](https://github.com/HelloFax/hubot-auth-middleware) 
+project which uses the auth plugin in Hubot to determine whether a user can take a particular action. See the 
+[README.md](https://github.com/HelloFax/hubot-auth-middleware/blob/master/README.md) of that project for more details 
+on configuring roles for user actions.
+
 # Installation
 
 In order to set up this plugin, first install it in the project:

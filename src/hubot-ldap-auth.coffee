@@ -86,18 +86,25 @@ module.exports = (inputRobot) ->
 
   client = undefined
 
-  _ensureHost = ->
-    unless client and client.connected
-      robot.logger.debug("reconnect to ldap endpoint.")
+  ensureConnected = ->
+    if !client or client.destroyed
+      robot.logger.debug("Creating ldap client")
       client = LDAP.createClient {
         url: ldapHost,
         bindDN: bindDn,
         bindCredentials: bindPassword
       }
+    else unless client.connected
+      robot.logger.debug("Reconnecting ldap")
+      client.connect()
 
   getDnForUser = (userId, user) ->
     if userNameRewriteRule
-      userId = userId.match(userNameRewriteRule)[1]
+      extractedUid = userId.match(userNameRewriteRule)
+      if extractedUid and extractedUid[1]
+        userId = [1]
+      else
+        robot.logger.warning("User with #{hubotUserNameAttribute} '#{userId}' does not match userNameRewrite Rule.")
     dnSearch(getUserFilter(userId)).then (value) -> { user: user, dn: value }
 
   getUserFilter = (userId)->
@@ -154,7 +161,7 @@ module.exports = (inputRobot) ->
 
   executeSearch = (opts) ->
     def = deferred()
-    _ensureHost()
+    ensureConnected()
     client.search baseDn, opts, (err, res) ->
       arr = []
       if err
@@ -212,9 +219,11 @@ module.exports = (inputRobot) ->
         brainUser.roles = groupNames
         brainUser.dn = entry.user.dn
         robot.brain.save()
-
       .catch (err) ->
         robot.logger.error "Error while getting user groups", err
+      .finally ->
+        if client and client.connected
+          client.unbind()
 
     robot.logger.info "Users and roles were loaded from LDAP"
 
