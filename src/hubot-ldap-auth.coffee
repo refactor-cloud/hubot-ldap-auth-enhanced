@@ -102,7 +102,7 @@ module.exports = (inputRobot) ->
     if userNameRewriteRule
       extractedUid = userId.match(userNameRewriteRule)
       if extractedUid and extractedUid[1]
-        userId = [1]
+        userId = extractedUid[1]
       else
         robot.logger.warning("User with #{hubotUserNameAttribute} '#{userId}' does not match userNameRewrite Rule.")
     dnSearch(getUserFilter(userId)).then (value) -> { user: user, dn: value }
