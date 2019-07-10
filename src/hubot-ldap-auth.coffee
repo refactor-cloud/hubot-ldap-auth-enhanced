@@ -31,9 +31,8 @@
 
 _ = require 'lodash'
 LDAP = require 'ldapjs'
-deferred = require 'deferred'
+Promise = require 'bluebird'
 config = require 'config'
-async = require 'async'
 
 ENV_PREFIX = "HUBOT_LDAP_AUTH"
 JSON_PREFIX = "ldap_auth"
@@ -172,7 +171,6 @@ module.exports = (robot) ->
       _.flattenDeep value.map (entry) -> entry.attributes[0].vals.map (v) -> v.toString()
 
   discoverRoomNames = () ->
-    robot.logger.info('Discovering room names in LDAP')
     opts = {
       filter: 'objectClass=group'
       scope: 'sub'
@@ -182,36 +180,54 @@ module.exports = (robot) ->
       ]
     }
     executeSearch(opts, roomSearchTree).then (entries) ->
-      rooms = _.flattenDeep entries.map (entry) -> entry.attributes[0].vals.map (v) -> v.toString()
-      robot.logger.debug("Found Room names in ldap: #{rooms}")
-      rooms.forEach (room) ->
-        robot.adapter.resolveRoom(room)
-          .then (roomId) ->
-            robot.logger.debug("Room #{roomId} already exists.")
-          .catch (data) ->
-            setTimeout(robot.adapter.newRoom(data.room, false), 100)
-            robot.logger.debug("Created room #{data.room}.")
-    robot.logger.debug('Finished discovering room names')
+      _.flattenDeep entries.map (entry) -> entry.attributes[0].vals.map (v) -> v.toString()
 
-  executeSearch = (opts, searchDn=undefined ) ->
-    def = deferred()
-    ensureConnected()
-    searchDn = searchDn or baseDn
-    client.search searchDn, opts, (err, res) ->
-      arr = []
-      if err
-        def.reject err
-      res.on 'searchEntry', (entry) ->
-        arr.push entry
-      res.on 'error', (err) ->
-        def.reject err
-      res.on 'end', (result) ->
-        def.resolve arr
-    def.promise
+#        timeout = -100
+#        promises = []
+#        rooms.forEach (room) ->
+#          setTimeout(timeout += 100
+#            robot.logger.debug(room)
+#            promises.push robot.adapter.resolveRoom(room)
+#          , timeout)
+#        promises
+#      .then (roomId) ->
+#        robot.logger.debug("Room #{room} (#{roomId}) already exists.")
+#      .catch (data) ->
+#        robot.adapter.newRoom(data.room, false)
+#    robot.logger.debug('Finished discovering room names')
+
+  executeSearch = (opts, searchDn=undefined) ->
+    new Promise.Promise (resolve, reject) ->
+      ensureConnected()
+      searchDn = searchDn or baseDn
+      client.search searchDn, opts, (err, res) ->
+        arr = []
+        if err
+          reject err
+        res.on 'searchEntry', (entry) ->
+          arr.push entry
+        res.on 'error', (err) ->
+          reject err
+        res.on 'end', (result) ->
+          resolve arr
 
   loadListeners = (isOneTimeRequest, refreshUserDn=false, only_userId=undefined) ->
     setTimeout loadListeners, refreshTime unless isOneTimeRequest
-    discoverRoomNames() if !isOneTimeRequest and roomNameAttribute and roomSearchTree and robot.adapter.newRoom and robot.adapter.resolveRoom
+    if !isOneTimeRequest and roomNameAttribute and roomSearchTree and robot.adapter.newRoom and robot.adapter.resolveRoom
+      robot.logger.info('Discovering room names in LDAP')
+      discoverRoomNames()
+        .then (rooms) ->
+          robot.logger.debug("Found Room names in ldap: #{rooms}")
+          rooms
+        .each (room) ->
+          robot.adapter.resolveRoom(room)
+            .then (roomId) ->
+              robot.logger.debug("Room #{room} (#{roomId}) already exists.")
+            .catch (data) ->
+              robot.adapter.newRoom(data.room, false)
+        .then () ->
+          robot.logger.debug('Finished discovering room names')
+
     robot.logger.info "Loading users and roles from LDAP" unless only_userId
     listenerRoles = loadListenerRoles().map (e) -> e.toLowerCase()
     promises = []
@@ -222,15 +238,15 @@ module.exports = (robot) ->
       users = robot.brain.users()
 
     for userId in Object.keys users
-      def = deferred()
       user = users[userId]
       userAttr = user[hubotUserNameAttribute]
       if userAttr
-        promises.push(if user.dn and !refreshUserDn \
-        then (def.resolve { "user": user }; def.promise) else getDnForUser(userAttr, user))
+        if user.dn and !refreshUserDn
+          promises.push new Promise.Promise (resolve) -> resolve {user: user}
+        else
+          promises.push getDnForUser(userAttr, user)
 
-    finished = deferred()
-    async.each(promises, (promise, callback) ->
+    promises.forEach (promise) ->
       promise.then (entry) ->
         if entry.dn
           entry.user.dn = entry.dn
@@ -268,14 +284,8 @@ module.exports = (robot) ->
           robot.brain.save()
       .catch (err) ->
         robot.logger.error "Error while getting user groups", err
-      .finally () ->
-        callback()
-    , (err) =>
-      robot.logger.error err if err
-      finished.resolve()
-    )
     robot.logger.info "Users and roles were loaded from LDAP" unless only_userId
-    finished.promise
+#    Promise.all(promises).then (data) -> robot.logger.debug('FIN', data)
 
 
   loadListenerRoles = () ->
