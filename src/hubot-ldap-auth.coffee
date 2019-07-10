@@ -19,6 +19,8 @@
 #   HUBOT_LDAP_AUTH_REFRESH_TIME - refresh_time - time in millisecods to refresh the roles and users
 #   HUBOT_LDAP_AUTH_DN_ATTRIBUTE_NAME - dn_attirbute_name - the dn attribute name, used for queries by DN. In ActiveDirectory should be distinguishedName
 #   HUBOT_LDAP_AUTH_USERNAME_REWRITE_RULE - username_rewrite_rule - regex for rewriting the hubot username to the one used in ldap - e.g. '@(.+):matrix.org' where the first capturing group will be used as username. No subsitution if omitted
+#   HUBOT_LDAP_AUTH_ROOM_ATTRIBUTE - room_attribute - the ldap attribute for room auto creation/auto join
+#   HUBOT_LDAP_AUTH_ROOM_SEARCH_TREE - room_search_tree - ldap subtree to search room names
 #
 # Commands:
 #   hubot what roles does <user> have - Find out what roles a user has
@@ -31,13 +33,14 @@ _ = require 'lodash'
 LDAP = require 'ldapjs'
 deferred = require 'deferred'
 config = require 'config'
+async = require 'async'
 
 ENV_PREFIX = "HUBOT_LDAP_AUTH"
 JSON_PREFIX = "ldap_auth"
 
-module.exports = (inputRobot) ->
-  robot = inputRobot
+client = undefined
 
+module.exports = (robot) ->
   loadConfigValue = (name, defaultValue, func...) ->
     result = process.env["#{ENV_PREFIX}_#{name.toUpperCase()}"]
     if result
@@ -70,21 +73,23 @@ module.exports = (inputRobot) ->
   ldapUserNameAttribute = loadConfigValue "ldap_user_attribute", "cn"
   hubotUserNameAttribute = loadConfigValue "hubot_user_attribute", "name"
   groupNameAttribute = loadConfigValue "ldap_group_attribute", "cn"
+  roomNameAttribute = loadConfigValue 'room_attribute', undefined
+  roomSearchTree = loadConfigValue 'room_search_tree', undefined
   refreshTime = loadConfigValue "refresh_time", 21600000
 
-  robot.logger.info "Starting ldap search with ldapURL: #{ldapHost}, bindDn: #{bindDn}, userSearchFilter: #{userSearchFilter},
-  groupMembershipFilter: #{groupMembershipFilter}, groupMembershipAttribute: #{groupMembershipAttribute}, groupMembershipSearchMethod: #{groupMembershipSearchMethod},
+  robot.logger.info "Starting ldap search with ldapURL: #{ldapHost}, bindDn: #{bindDn},
+    userSearchFilter: #{userSearchFilter}, groupMembershipFilter: #{groupMembershipFilter},
+    groupMembershipAttribute: #{groupMembershipAttribute}, groupMembershipSearchMethod: #{groupMembershipSearchMethod},
     rolesToInclude: #{rolesToInclude}, useOnlyListenerRoles: #{useOnlyListenerRoles}, baseDn: #{baseDn},
-    ldapUserNameAttribute: #{ldapUserNameAttribute}, hubotUserNameAttribute: #{hubotUserNameAttribute}, groupNameAttribute: #{groupNameAttribute}, userNameRewriteRule: #{userNameRewriteRule}"
+    ldapUserNameAttribute: #{ldapUserNameAttribute}, hubotUserNameAttribute: #{hubotUserNameAttribute},
+    groupNameAttribute: #{groupNameAttribute}, userNameRewriteRule: #{userNameRewriteRule}, roomNameAttribute:
+    #{roomNameAttribute}, roomSearchTree: #{roomSearchTree}"
 
   if !useOnlyListenerRoles and rolesToInclude
     wildcardExp = /.*\*.*/
     rolesToInclude = rolesToInclude.map (role) =>
       if role.match(wildcardExp) then role.replace /\*/g, '.*' else role
-    rolesToInclude = new RegExp "^#{rolesToInclude.join('|')}$"
-
-
-  client = undefined
+    rolesToInclude = new RegExp "^.*(#{rolesToInclude.join('|')}).*$"
 
   ensureConnected = ->
     if !client or client.destroyed
@@ -126,7 +131,13 @@ module.exports = (inputRobot) ->
         ret = value[0].objectName.toString().replace(/, /g, ',')
         ret
 
+  getGroupRoomNamesByDn = (dns) ->
+    getGroupAttributesByDn(dns, roomNameAttribute)
+
   getGroupNamesByDn = (dns) ->
+    getGroupAttributesByDn(dns, groupNameAttribute)
+
+  getGroupAttributesByDn = (dns, attribute) ->
     filter = dns.map (dn) -> "(#{dnAttributeName}=#{dn})"
     filter = "(|#{filter.join('')})"
     opts = {
@@ -134,7 +145,7 @@ module.exports = (inputRobot) ->
       scope: 'sub'
       sizeLimit: dns.length
       attributes: [
-        groupNameAttribute
+        attribute
       ]
     }
     executeSearch(opts).then (entries) ->
@@ -147,6 +158,7 @@ module.exports = (inputRobot) ->
     else
       filter = groupMembershipFilter.replace(/\{0\}/g, user.dn)
       attribute = dnAttributeName
+
     robot.logger.debug "Getting groups DNs for user: #{user.dn}, filter = #{filter}, attribute = #{attribute}"
     opts = {
       filter: filter
@@ -159,10 +171,33 @@ module.exports = (inputRobot) ->
     executeSearch(opts).then (value) ->
       _.flattenDeep value.map (entry) -> entry.attributes[0].vals.map (v) -> v.toString()
 
-  executeSearch = (opts) ->
+  discoverRoomNames = () ->
+    robot.logger.info('Discovering room names in LDAP')
+    opts = {
+      filter: 'objectClass=group'
+      scope: 'sub'
+      sizeLimit: 200
+      attributes: [
+        roomNameAttribute
+      ]
+    }
+    executeSearch(opts, roomSearchTree).then (entries) ->
+      rooms = _.flattenDeep entries.map (entry) -> entry.attributes[0].vals.map (v) -> v.toString()
+      robot.logger.debug("Found Room names in ldap: #{rooms}")
+      rooms.forEach (room) ->
+        robot.adapter.resolveRoom(room)
+          .then (roomId) ->
+            robot.logger.debug("Room #{roomId} already exists.")
+          .catch (data) ->
+            setTimeout(robot.adapter.newRoom(data.room, false), 100)
+            robot.logger.debug("Created room #{data.room}.")
+    robot.logger.debug('Finished discovering room names')
+
+  executeSearch = (opts, searchDn=undefined ) ->
     def = deferred()
     ensureConnected()
-    client.search baseDn, opts, (err, res) ->
+    searchDn = searchDn or baseDn
+    client.search searchDn, opts, (err, res) ->
       arr = []
       if err
         def.reject err
@@ -174,25 +209,28 @@ module.exports = (inputRobot) ->
         def.resolve arr
     def.promise
 
-  loadListeners = (isOneTimeRequest, refreshUserDn=false) ->
-    if !isOneTimeRequest
-      setTimeout ->
-        loadListeners()
-      , refreshTime
-    robot.logger.info "Loading users and roles from LDAP"
-    listenerRoles = loadListenerRoles()
-      .map (e) -> e.toLowerCase()
+  loadListeners = (isOneTimeRequest, refreshUserDn=false, only_userId=undefined) ->
+    setTimeout loadListeners, refreshTime unless isOneTimeRequest
+    discoverRoomNames() if !isOneTimeRequest and roomNameAttribute and roomSearchTree and robot.adapter.newRoom and robot.adapter.resolveRoom
+    robot.logger.info "Loading users and roles from LDAP" unless only_userId
+    listenerRoles = loadListenerRoles().map (e) -> e.toLowerCase()
     promises = []
-    users = robot.brain.users()
-    def = deferred()
+    users = undefined
+    if only_userId
+      users = [robot.brain.userForId(only_userId)]
+    else
+      users = robot.brain.users()
+
     for userId in Object.keys users
+      def = deferred()
       user = users[userId]
       userAttr = user[hubotUserNameAttribute]
       if userAttr
         promises.push(if user.dn and !refreshUserDn \
-        then (def.resolve { user: user }; def.promise) else getDnForUser(userAttr, user))
+        then (def.resolve { "user": user }; def.promise) else getDnForUser(userAttr, user))
 
-    promises.forEach (promise) ->
+    finished = deferred()
+    async.each(promises, (promise, callback) ->
       promise.then (entry) ->
         if entry.dn
           entry.user.dn = entry.dn
@@ -202,30 +240,42 @@ module.exports = (inputRobot) ->
         entry.user
       .then (user) ->
         getGroupsDNsForUser(user).then (groupDns) ->
+          filterRoles = if useOnlyListenerRoles then new RegExp "^.*(?:#{listenerRoles.join('|')}).*$" else rolesToInclude
+          if filterRoles
+            groupDns = groupDns.filter (e) -> e.toLowerCase().match(filterRoles)
           {user: user, groupDns: groupDns}
       .then (entry) ->
         getGroupNamesByDn(entry.groupDns).then (groupNames) ->
-          {user: entry.user, groupNames: groupNames}
+          groupNames = _.sortBy(groupNames)
+          if groupNames.length > 0
+            robot.logger.debug("Roles for #{entry.user.name} are #{groupNames}.")
+          else
+            robot.logger.debug("#{entry.user.name} has no roles.")
+          entry.groupNames = groupNames
+          entry
       .then (entry) ->
-        groupNames = entry.groupNames
-        robot.logger.debug "groupNames for #{entry.user.name} are #{groupNames}"
-        filterRoles = if useOnlyListenerRoles then new RegExp "^#{listenerRoles.join('|')}$" else rolesToInclude
-        if filterRoles
-          groupNames = groupNames.filter (e) -> e.toLowerCase().match(filterRoles)
-        robot.logger.debug "groupNames for #{entry.user.name} are #{groupNames} - after filter"
-
-        groupNames = _.sortBy(groupNames)
-        brainUser = robot.brain.userForId entry.user.id
-        brainUser.roles = groupNames
-        brainUser.dn = entry.user.dn
-        robot.brain.save()
+        if roomNameAttribute
+          getGroupRoomNamesByDn(entry.groupDns).then (roomNames) ->
+            entry.rooms = roomNames.map (e) -> e.replace /\ /g, '_'
+            entry
+        else
+          entry
+      .then (entry) ->
+          brainUser = robot.brain.userForId entry.user.id
+          brainUser.roles = entry.groupNames
+          brainUser.dn = entry.user.dn
+          brainUser.rooms = entry.rooms if entry.rooms
+          robot.brain.save()
       .catch (err) ->
         robot.logger.error "Error while getting user groups", err
-      .finally ->
-        if client and client.connected
-          client.unbind()
-
-    robot.logger.info "Users and roles were loaded from LDAP"
+      .finally () ->
+        callback()
+    , (err) =>
+      robot.logger.error err if err
+      finished.resolve()
+    )
+    robot.logger.info "Users and roles were loaded from LDAP" unless only_userId
+    finished.promise
 
 
   loadListenerRoles = () ->
@@ -239,6 +289,8 @@ module.exports = (inputRobot) ->
     rolesToSearch
 
   class Auth
+    loadSingle: (userId) ->
+      loadListeners(true, false, userId)
 
     hasRole: (user, roles) ->
       userRoles = @userRoles(user)

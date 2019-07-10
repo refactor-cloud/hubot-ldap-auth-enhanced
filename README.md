@@ -20,6 +20,9 @@ one would have to issue a manual request to hubot (```hubot refresh roles!```). 
 
 If unique user ids in ldap differ from these known by hubot, a substitution can be specified with a regex. The first 
 capturing group is representative of the username in ldap.
+
+This module is also able discover and auto-create rooms for users from LDAP. Your adapter needs for this functionality 
+the ability to let Hubot create rooms.
 ```
 # @exampleUser:matrix.com -> exampleUser
 
@@ -49,6 +52,8 @@ LDAP_GROUP_ATTRIBUTE | cn | the ldap attribute of a group that will be used as r
 REFRESH_TIME | 21600000 | time in millisecods to refresh the roles and users
 DN_ATTRIBUTE_NAME | dn | the dn attribute name, used for queries by DN. In ActiveDirectory should be distinguishedName
 USERNAME_REWRITE_RULE |   | regex for rewriting the hubot username to the one used in ldap - e.g. '@(.+):matrix.org' where the first capturing group will be used as username. No subsitution if omitted
+HUBOT_LDAP_AUTH_ROOM_ATTRIBUTE |   | the ldap attribute for room auto creation/auto join
+HUBOT_LDAP_AUTH_ROOM_SEARCH_TREE |   | ldap subtree to search room names
 
 
 # Commands
