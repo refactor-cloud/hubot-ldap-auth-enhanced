@@ -1,4 +1,4 @@
-# Description
+# Description:
 #   Delegate authorization for Hubot user actions to LDAP
 #
 # Configuration: (ENV - json - description)
@@ -182,20 +182,6 @@ module.exports = (robot) ->
     executeSearch(opts, roomSearchTree).then (entries) ->
       _.flattenDeep entries.map (entry) -> entry.attributes[0].vals.map (v) -> v.toString()
 
-#        timeout = -100
-#        promises = []
-#        rooms.forEach (room) ->
-#          setTimeout(timeout += 100
-#            robot.logger.debug(room)
-#            promises.push robot.adapter.resolveRoom(room)
-#          , timeout)
-#        promises
-#      .then (roomId) ->
-#        robot.logger.debug("Room #{room} (#{roomId}) already exists.")
-#      .catch (data) ->
-#        robot.adapter.newRoom(data.room, false)
-#    robot.logger.debug('Finished discovering room names')
-
   executeSearch = (opts, searchDn=undefined) ->
     new Promise.Promise (resolve, reject) ->
       ensureConnected()
@@ -272,6 +258,11 @@ module.exports = (robot) ->
       .then (entry) ->
         if roomNameAttribute
           getGroupRoomNamesByDn(entry.groupDns).then (roomNames) ->
+            roomNames = _.sortBy(roomNames)
+            if groupNames.length > 0
+              robot.logger.debug("Rooms for #{entry.user.name} are #{roomNames}.")
+            else
+              robot.logger.debug("#{entry.user.name} has no rooms.")
             entry.rooms = roomNames.map (e) -> e.replace /\ /g, '_'
             entry
         else
@@ -280,12 +271,17 @@ module.exports = (robot) ->
           brainUser = robot.brain.userForId entry.user.id
           brainUser.roles = entry.groupNames
           brainUser.dn = entry.user.dn
-          brainUser.rooms = entry.rooms if entry.rooms
+          if entry.rooms
+            brainUser.rooms = entry.rooms
+          else
+            delete brainUser.rooms
+
           robot.brain.save()
       .catch (err) ->
         robot.logger.error "Error while getting user groups", err
+
     robot.logger.info "Users and roles were loaded from LDAP" unless only_userId
-#    Promise.all(promises).then (data) -> robot.logger.debug('FIN', data)
+    Promise.all(promises)
 
 
   loadListenerRoles = () ->
