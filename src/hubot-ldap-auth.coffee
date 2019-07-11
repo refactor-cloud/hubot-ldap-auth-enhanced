@@ -259,7 +259,7 @@ module.exports = (robot) ->
         if roomNameAttribute
           getGroupRoomNamesByDn(entry.groupDns).then (roomNames) ->
             roomNames = _.sortBy(roomNames)
-            if groupNames.length > 0
+            if roomNames.length > 0
               robot.logger.debug("Rooms for #{entry.user.name} are #{roomNames}.")
             else
               robot.logger.debug("#{entry.user.name} has no rooms.")
