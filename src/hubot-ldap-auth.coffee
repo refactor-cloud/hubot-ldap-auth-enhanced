@@ -210,14 +210,11 @@ module.exports = (robot) ->
           robot.logger.debug("Found Room names in ldap: #{rooms}")
           rooms
         .each (room) ->
-          setTimeout((room) ->
-            robot.adapter.resolveRoom(room)
-              .then (roomId) ->
-                robot.logger.debug("Room #{room} (#{roomId}) already exists.")
-              .catch (data) ->
-                robot.adapter.newRoom(data.room, false)
-          , timeout, room)
-          timeout += 1000 # prevent matrix API timeouts
+          robot.adapter.resolveRoom(room)
+            .then (roomId) ->
+              robot.logger.debug("Room #{room} (#{roomId}) already exists.")
+            .catch (data) ->
+              robot.adapter.newRoom(data.room, false)
         .then () ->
           robot.logger.debug('Finished discovering room names')
         .catch (err) ->
