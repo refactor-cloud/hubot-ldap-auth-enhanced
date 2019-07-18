@@ -217,7 +217,7 @@ module.exports = (robot) ->
               .catch (data) ->
                 robot.adapter.newRoom(data.room, false)
           , timeout, room)
-          timeout += 500 # prevent matrix API timeouts
+          timeout += 1000 # prevent matrix API timeouts
         .then () ->
           robot.logger.debug('Finished discovering room names')
         .catch (err) ->
