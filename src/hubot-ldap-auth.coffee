@@ -172,7 +172,6 @@ module.exports = (robot) ->
 
   discoverRoomNames = () ->
     opts = {
-      filter: 'objectClass=group'
       scope: 'sub'
       sizeLimit: 200
       attributes: [
@@ -180,7 +179,11 @@ module.exports = (robot) ->
       ]
     }
     executeSearch(opts, roomSearchTree).then (entries) ->
-      _.flattenDeep entries.map (entry) -> entry.attributes[0].vals.map (v) -> v.toString()
+      rooms = _.flattenDeep entries.map (entry) ->
+        if entry.attributes.length > 0
+          return entry.attributes[0].vals.map (v) -> v.toString()
+        undefined
+      rooms.filter(Boolean)
 
   executeSearch = (opts, searchDn=undefined) ->
     new Promise.Promise (resolve, reject) ->
@@ -198,7 +201,7 @@ module.exports = (robot) ->
           resolve arr
 
   loadListeners = (isOneTimeRequest, refreshUserDn=false, only_userId=undefined) ->
-    setTimeout loadListeners, refreshTime unless isOneTimeRequest
+    setTimeout(loadListeners, refreshTime) unless isOneTimeRequest
     if !isOneTimeRequest and roomNameAttribute and roomSearchTree and robot.adapter.newRoom and robot.adapter.resolveRoom
       robot.logger.info('Discovering room names in LDAP')
       discoverRoomNames()
@@ -213,6 +216,8 @@ module.exports = (robot) ->
               robot.adapter.newRoom(data.room, false)
         .then () ->
           robot.logger.debug('Finished discovering room names')
+        .catch (err) ->
+          robot.logger.error('Error during room name discovery:', err)
 
     robot.logger.info "Loading users and roles from LDAP" unless only_userId
     listenerRoles = loadListenerRoles().map (e) -> e.toLowerCase()
