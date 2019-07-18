@@ -204,16 +204,20 @@ module.exports = (robot) ->
     setTimeout(loadListeners, refreshTime) unless isOneTimeRequest
     if !isOneTimeRequest and roomNameAttribute and roomSearchTree and robot.adapter.newRoom and robot.adapter.resolveRoom
       robot.logger.info('Discovering room names in LDAP')
+      timeout = 0
       discoverRoomNames()
         .then (rooms) ->
           robot.logger.debug("Found Room names in ldap: #{rooms}")
           rooms
         .each (room) ->
-          robot.adapter.resolveRoom(room)
-            .then (roomId) ->
-              robot.logger.debug("Room #{room} (#{roomId}) already exists.")
-            .catch (data) ->
-              robot.adapter.newRoom(data.room, false)
+          setTimeout((room) ->
+            robot.adapter.resolveRoom(room)
+              .then (roomId) ->
+                robot.logger.debug("Room #{room} (#{roomId}) already exists.")
+              .catch (data) ->
+                robot.adapter.newRoom(data.room, false)
+          , timeout, room)
+          timeout += 500 # prevent matrix API timeouts
         .then () ->
           robot.logger.debug('Finished discovering room names')
         .catch (err) ->
